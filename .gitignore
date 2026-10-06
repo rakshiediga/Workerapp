@@ -1,0 +1,16 @@
+# Dependencies and build output
+**/node_modules/
+**/.next/
+**/dist/
+**/out/
+**/coverage/
+**/*.tsbuildinfo
+# Secrets and private documents
+**/.env
+**/.env.*
+!**/.env.example
+**/uploads/
+backend/src/generated/prisma/
+**/next-env.d.ts
+*.log
+.DS_Store

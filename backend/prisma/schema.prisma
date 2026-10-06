@@ -1,0 +1,266 @@
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  CUSTOMER
+  WORKER
+  ADMIN
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  SUSPENDED
+}
+
+enum VerificationDocumentType {
+  AADHAAR
+  PAN
+  DRIVING_LICENSE
+  VOTER_ID
+}
+
+enum BookingStatus {
+  REQUESTED
+  ACCEPTED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  UPI
+  CARD
+  NET_BANKING
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String
+  email        String?  @unique
+  phone        String   @unique @db.VarChar(20)
+  passwordHash String?
+  role         Role     @default(CUSTOMER)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @db.Timestamptz(3)
+
+  workerProfile WorkerProfile?
+  addresses     Address[]
+  bookings      Booking[]              @relation("CustomerBookings")
+  reviews       Review[]               @relation("CustomerReviews")
+  statusChanges BookingStatusHistory[] @relation("StatusChangedBy")
+}
+
+model WorkerProfile {
+  id                      String              @id @default(uuid()) @db.Uuid
+  userId                  String              @unique @db.Uuid
+  bio                     String?
+  city                    String?
+  serviceArea             String?
+  primaryCategoryId       String?             @db.Uuid
+  primaryCategory         Category?           @relation("WorkerPrimaryCategory", fields: [primaryCategoryId], references: [id], onDelete: Restrict)
+  experienceYears         Int                 @default(0)
+  startingPrice           Decimal             @default(0) @db.Decimal(12, 2)
+  rating                  Decimal             @default(0) @db.Decimal(3, 2)
+  totalReviews            Int                 @default(0)
+  isAvailable             Boolean             @default(true)
+  verificationStatus      VerificationStatus  @default(PENDING)
+  verificationSubmittedAt DateTime?           @db.Timestamptz(3)
+  verification            WorkerVerification?
+  createdAt               DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt               DateTime            @updatedAt @db.Timestamptz(3)
+
+  user     User            @relation(fields: [userId], references: [id], onDelete: Restrict)
+  services WorkerService[]
+  bookings Booking[]
+  reviews  Review[]
+
+  @@index([isAvailable, verificationStatus])
+  @@index([primaryCategoryId])
+}
+
+model Category {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  slug        String   @unique
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(3)
+
+  services       Service[]
+  primaryWorkers WorkerProfile[] @relation("WorkerPrimaryCategory")
+}
+
+model Service {
+  id          String   @id @default(uuid()) @db.Uuid
+  categoryId  String   @db.Uuid
+  name        String
+  slug        String   @unique
+  description String?
+  basePrice   Decimal  @db.Decimal(12, 2)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(3)
+
+  category Category        @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  workers  WorkerService[]
+  bookings Booking[]
+
+  @@index([categoryId, isActive])
+}
+
+model WorkerService {
+  id        String   @id @default(uuid()) @db.Uuid
+  workerId  String   @db.Uuid
+  serviceId String   @db.Uuid
+  price     Decimal  @db.Decimal(12, 2)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  worker  WorkerProfile @relation(fields: [workerId], references: [id], onDelete: Restrict)
+  service Service       @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+
+  @@unique([workerId, serviceId])
+  @@index([serviceId])
+}
+
+model Address {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  label      String
+  houseFlat  String
+  streetArea String
+  landmark   String?
+  city       String
+  state      String
+  pincode    String   @db.VarChar(10)
+  latitude   Decimal? @db.Decimal(9, 6)
+  longitude  Decimal? @db.Decimal(9, 6)
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId, isDefault])
+}
+
+model Booking {
+  id            String        @id @default(uuid()) @db.Uuid
+  bookingNumber String        @unique
+  customerId    String        @db.Uuid
+  workerId      String        @db.Uuid
+  serviceId     String        @db.Uuid
+  bookingDate   DateTime      @db.Date
+  bookingTime   String        @db.VarChar(8)
+  price         Decimal       @db.Decimal(12, 2)
+  status        BookingStatus @default(REQUESTED)
+
+  // Immutable service address/contact snapshots, independent of Address.id.
+  addressLabel       String
+  houseFlat          String
+  streetArea         String
+  landmark           String?
+  city               String
+  state              String
+  pincode            String   @db.VarChar(10)
+  customerPhone      String   @db.VarChar(20)
+  problemDescription String?
+  createdAt          DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime @updatedAt @db.Timestamptz(3)
+
+  customer      User                   @relation("CustomerBookings", fields: [customerId], references: [id], onDelete: Restrict)
+  worker        WorkerProfile          @relation(fields: [workerId], references: [id], onDelete: Restrict)
+  service       Service                @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  statusHistory BookingStatusHistory[]
+  review        Review?
+  payment       Payment?
+
+  @@index([customerId, createdAt])
+  @@index([workerId, status, bookingDate])
+  @@index([status, bookingDate])
+  @@index([bookingDate])
+  @@index([serviceId])
+}
+
+model BookingStatusHistory {
+  id              String        @id @default(uuid()) @db.Uuid
+  bookingId       String        @db.Uuid
+  status          BookingStatus
+  changedByUserId String?       @db.Uuid
+  reason          String?       @db.VarChar(500)
+  createdAt       DateTime      @default(now()) @db.Timestamptz(3)
+
+  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  changedBy User?   @relation("StatusChangedBy", fields: [changedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([bookingId, createdAt])
+}
+
+model Review {
+  id         String   @id @default(uuid()) @db.Uuid
+  bookingId  String   @unique @db.Uuid
+  customerId String   @db.Uuid
+  workerId   String   @db.Uuid
+  // Review API will validate the 1–5 range; no review submission in this step.
+  rating     Int
+  comment    String?
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @db.Timestamptz(3)
+
+  booking  Booking       @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  customer User          @relation("CustomerReviews", fields: [customerId], references: [id], onDelete: Restrict)
+  worker   WorkerProfile @relation(fields: [workerId], references: [id], onDelete: Restrict)
+
+  @@index([workerId, createdAt])
+  @@index([customerId])
+}
+
+model Payment {
+  id                String        @id @default(uuid()) @db.Uuid
+  bookingId         String        @unique @db.Uuid
+  amount            Decimal       @db.Decimal(12, 2)
+  method            PaymentMethod
+  status            PaymentStatus @default(PENDING)
+  provider          String?
+  providerPaymentId String?
+  createdAt         DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime      @updatedAt @db.Timestamptz(3)
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+}
+
+model WorkerVerification {
+  id                  String                   @id @default(uuid()) @db.Uuid
+  workerId            String                   @unique @db.Uuid
+  fullLegalName       String                   @db.VarChar(100)
+  documentType        VerificationDocumentType
+  documentNumberLast4 String                   @db.VarChar(4)
+  documentFrontPath   String
+  documentBackPath    String?
+  submittedAt         DateTime                 @db.Timestamptz(3)
+  reviewedAt          DateTime?                @db.Timestamptz(3)
+  rejectionReason     String?                  @db.VarChar(500)
+  createdAt           DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime                 @updatedAt @db.Timestamptz(3)
+  worker              WorkerProfile            @relation(fields: [workerId], references: [id], onDelete: Restrict)
+}

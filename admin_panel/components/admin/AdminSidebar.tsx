@@ -1,0 +1,7 @@
+"use client";
+import Link from "next/link";
+import {usePathname} from "next/navigation";
+import {navigation} from "@/lib/navigation";
+import {Icon} from "./Icon";
+import {useAdminAuth} from "./AdminAuthProvider";
+export function AdminSidebar({onNavigate}:{onNavigate?:()=>void}){const {logout}=useAdminAuth();const pathname=usePathname();return <aside className="flex min-h-full flex-col bg-slate-950 text-slate-300"><div className="border-b border-white/10 px-6 py-7"><Link href="/dashboard" onClick={onNavigate} className="text-xl font-bold tracking-tight text-white">WorkerBooking</Link><p className="mt-2 text-xs font-medium uppercase tracking-[.18em] text-slate-400">Admin Panel</p></div><nav aria-label="Admin navigation" className="flex-1 space-y-1 px-3 py-6">{navigation.map(item=><Link key={item.href} href={item.href} onClick={onNavigate} aria-current={pathname===item.href || pathname.startsWith(item.href+"/")?"page":undefined} className={"flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors "+(pathname===item.href || pathname.startsWith(item.href+"/")?"bg-teal-700 text-white":"hover:bg-white/5 hover:text-white")}><Icon name={item.icon}/>{item.label}</Link>)}</nav><div className="border-t border-white/10 p-3"><button type="button" onClick={()=>{onNavigate?.();logout();}} className="w-full rounded-lg px-3 py-3 text-left text-sm font-medium hover:bg-white/5 hover:text-white">Logout</button></div></aside>;}

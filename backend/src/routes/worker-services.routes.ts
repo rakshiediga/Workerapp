@@ -1,0 +1,11 @@
+import {Router} from "express";
+import {authenticate,authorizeRoles} from "../middleware/auth.middleware.js";
+import * as controller from "../controllers/worker-services.controller.js";
+const router=Router();router.use(authenticate,authorizeRoles("WORKER"));
+router.get("/services",controller.list);
+router.post("/services",controller.add);
+router.patch("/services/:id",controller.update);
+router.delete("/services/:id",controller.remove);
+router.get("/available-services",controller.eligible);
+router.patch("/availability",controller.availability);
+export default router;

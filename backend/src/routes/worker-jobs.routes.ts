@@ -1,0 +1,10 @@
+import {Router} from "express";
+import {authenticate, authorizeRoles} from "../middleware/auth.middleware.js";
+import {jobs, job, start, complete} from "../controllers/worker-job.controller.js";
+const router = Router();
+router.use(authenticate, authorizeRoles("WORKER"));
+router.get("/", jobs);
+router.get("/:bookingNumber", job);
+router.patch("/:bookingNumber/start", start);
+router.patch("/:bookingNumber/complete", complete);
+export default router;

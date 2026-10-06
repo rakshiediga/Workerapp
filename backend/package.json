@@ -1,0 +1,50 @@
+{
+  "name": "worker-booking-api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "prebuild": "prisma generate",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "pretypecheck": "prisma generate",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc -p tsconfig.prisma.json",
+    "db:validate": "prisma validate",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:seed": "prisma db seed",
+    "db:studio": "prisma studio",
+    "test": "npm run build && node --experimental-test-module-mocks --test tests/auth.test.mjs tests/marketplace.test.mjs tests/booking.test.mjs tests/address.test.mjs tests/profile.test.mjs tests/worker-auth.test.mjs tests/worker-profile.test.mjs tests/worker-services.test.mjs tests/worker-job-transitions.test.mjs tests/worker-earnings.test.mjs tests/worker-verification.test.mjs tests/admin-auth.test.mjs",
+    "admin:create": "tsx src/scripts/create-admin.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "Shared REST API for the Worker Booking applications",
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.10.0",
+    "@prisma/client": "^7.10.0",
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.5",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.7.0",
+    "file-type": "^22.1.1",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.4.0"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/multer": "^2.3.0",
+    "@types/node": "^26.6.4",
+    "prisma": "^7.10.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}

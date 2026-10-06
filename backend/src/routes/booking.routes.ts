@@ -1,0 +1,10 @@
+import { Router } from "express";
+import { authenticate, authorizeRoles } from "../middleware/auth.middleware.js";
+import * as controller from "../controllers/booking.controller.js";
+const router = Router();
+router.use(authenticate, authorizeRoles("CUSTOMER"));
+router.post("/", controller.create);
+router.get("/my", controller.list);
+router.get("/:bookingNumber", controller.details);
+router.patch("/:bookingNumber/cancel", controller.cancel);
+export default router;

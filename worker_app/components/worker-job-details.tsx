@@ -1,0 +1,44 @@
+"use client";
+import Link from "next/link";
+import {useRouter} from "next/navigation";
+import {useRef, useState} from "react";
+import {WorkerSidebar} from "./worker-sidebar";
+import {useWorkerJob} from "@/lib/use-job-requests";
+import {jobDate,jobTimestamp,jobMoney,cancellation} from "@/lib/worker-jobs";
+import {apiFetch, ApiError} from "@/lib/api";
+const labels: Record<string, string> = {REQUESTED: "New Request", ACCEPTED: "Accepted", IN_PROGRESS: "In Progress", COMPLETED: "Completed", CANCELLED: "Cancelled"};
+const timestamp = jobTimestamp;
+export function WorkerJobDetails({bookingNumber, job = false}: {bookingNumber: string; job?: boolean}) {
+  const jobs = useWorkerJob(bookingNumber); const request = jobs.request; const router = useRouter();
+  const [confirm, setConfirm] = useState<"accept" | "reject" | "start" | "complete" | null>(null);
+  const [reason, setReason] = useState(""); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
+  const submitting = useRef(false);
+  const [message,setMessage]=useState("");
+  const pendingLabel=confirm==="accept"?"Accepting...":confirm==="reject"?"Rejecting...":confirm==="start"?"Starting...":"Completing...";
+  async function act() {
+    if (!confirm || submitting.current) return;
+    submitting.current = true; setBusy(true); setError(""); setMessage("");
+    try {
+      await apiFetch(`/api/worker/${confirm === "start" || confirm === "complete" ? "jobs" : "job-requests"}/${encodeURIComponent(bookingNumber)}/${confirm}`, {method: "PATCH", ...(confirm === "reject" ? {body: JSON.stringify({reason: reason.trim()})} : {})});
+      if(confirm === "start" || confirm === "complete"){setMessage(confirm === "start" ? "Job started successfully." : "Job completed successfully.");setConfirm(null);jobs.reload();submitting.current=false;setBusy(false);}else router.push(confirm === "accept" ? `/jobs/${encodeURIComponent(bookingNumber)}` : "/job-requests?rejected=1");
+    } catch (cause) {
+      setError(cause instanceof ApiError && cause.status === 409 ? confirm === "start" || confirm === "complete" ? "This job has already changed status." : "This job request is no longer available." : cause instanceof Error ? cause.message : "Unable to update this job. Please try again.");
+      if (cause instanceof ApiError && [404, 409].includes(cause.status)) {setConfirm(null); jobs.reload();}
+      submitting.current = false; setBusy(false);
+    }
+  }
+  return <div className="min-h-screen lg:grid lg:grid-cols-[240px_1fr]"><WorkerSidebar/><main className="px-5 py-8 sm:px-8"><div className="mx-auto max-w-4xl"><Link href={job ? "/jobs" : "/job-requests"} className="font-semibold text-teal-700">{job ? "Back to My Jobs" : "Back to Job Requests"}</Link><h1 className="mt-5 text-3xl font-bold">{job || request?.status !== "REQUESTED" && request ? "Job Details" : "Job Request Details"}</h1>
+    {message && <p role="status" className="mt-4 rounded-lg bg-teal-50 p-4 text-teal-800">{message}</p>}
+    {error && <p role="alert" className="mt-4 rounded-lg bg-red-50 p-4 text-red-800">{error}</p>}
+    {jobs.loading ? <p role="status" className="mt-8">Loading job request...</p> : jobs.error ? <div role="alert" className="mt-8 rounded-lg bg-red-50 p-5 text-red-800">{jobs.status === 404 ? "Job request not found." : jobs.error}{jobs.status !== 404 && <button onClick={jobs.reload} className="ml-4 underline">Retry</button>}</div> : request && <div className="mt-6 space-y-5">
+      {job && request.status === "ACCEPTED" && <p role="status" className="rounded-lg bg-teal-50 p-4 text-teal-800">Job accepted successfully.</p>}
+      <section className="rounded-xl border border-slate-200 bg-white p-6"><p className="break-all text-sm text-slate-500">{request.bookingNumber}</p><span className="mt-3 inline-block rounded-full bg-teal-50 px-3 py-1 text-sm font-semibold text-teal-800">{labels[request.status]}</span>{request.status === "CANCELLED" && <div className="mt-4"><p>{cancellation(request).label}</p>{cancellation(request).reason && <p className="mt-2 whitespace-pre-wrap">Reason: {cancellation(request).reason}</p>}</div>}<h2 className="mt-5 text-xl font-semibold">Service Details</h2><p className="mt-2">{request.service.name}</p><p className="mt-2 font-semibold">{jobMoney(request.price)}</p></section>
+      <section className="rounded-xl border border-slate-200 bg-white p-6"><h2 className="text-xl font-semibold">Customer</h2><p className="mt-2">{request.customer.name}</p>{["ACCEPTED","IN_PROGRESS","COMPLETED"].includes(request.status) && request.customerPhone ? <p className="mt-3">Mobile Number: <a href={`tel:+91${request.customerPhone}`} className="text-teal-700">{request.customerPhone}</a></p> : <p className="mt-3 text-sm text-slate-500">{request.status === "REQUESTED" ? "Customer contact details will be available after accepting the job." : "Customer contact details are unavailable for this booking."}</p>}<h2 className="mt-6 text-xl font-semibold">Schedule</h2><p className="mt-2">{jobDate(request.bookingDate)} · {request.bookingTime}</p></section>
+      <section className="rounded-xl border border-slate-200 bg-white p-6"><h2 className="text-xl font-semibold">Service Address</h2><address className="mt-3 space-y-1 not-italic"><p className="font-semibold">{request.address.label}</p><p>{request.address.houseFlat}</p><p>{request.address.streetArea}</p>{request.address.landmark && <p>{request.address.landmark}</p>}<p>{request.address.city}, {request.address.state} — {request.address.pincode}</p></address></section>
+      <section className="rounded-xl border border-slate-200 bg-white p-6"><h2 className="text-xl font-semibold">Problem Description</h2><p className="mt-3 whitespace-pre-wrap break-words">{request.problemDescription || "No problem description provided."}</p><h2 className="mt-6 text-xl font-semibold">Request Received</h2><p className="mt-2">{timestamp(request.createdAt)}</p><h2 className="mt-6 text-xl font-semibold">Status History</h2><ol className="mt-3 space-y-3">{request.statusHistory.map((entry, index) => <li key={index}><p>{entry.status === "CANCELLED" && entry.actor === "WORKER" ? "Worker declined this request" : entry.status === "REQUESTED" ? "Requested" : labels[entry.status]} · {timestamp(entry.createdAt)}</p>{entry.reason && <p className="mt-1 whitespace-pre-wrap break-words text-sm text-slate-600">{entry.reason}</p>}</li>)}</ol></section>
+      {["REQUESTED","ACCEPTED","IN_PROGRESS"].includes(request.status) && <section className="rounded-xl border border-slate-200 bg-white p-6">
+        {request.status === "REQUESTED" ? <div className="flex flex-wrap gap-3"><button disabled={busy} onClick={() => {setConfirm("accept"); setError("");}} className="rounded-lg bg-teal-700 px-5 py-3 font-semibold text-white disabled:opacity-50">{busy && confirm === "accept" ? "Accepting..." : "Accept Job"}</button><button disabled={busy} onClick={() => {setConfirm("reject"); setError("");}} className="rounded-lg border border-red-300 px-5 py-3 font-semibold text-red-700 disabled:opacity-50">{busy && confirm === "reject" ? "Rejecting..." : "Reject Job"}</button></div> : <button disabled={busy} onClick={()=>{setConfirm(request.status === "ACCEPTED" ? "start" : "complete");setError("");}} className="rounded-lg bg-teal-700 px-5 py-3 font-semibold text-white disabled:opacity-50">{busy ? pendingLabel : request.status === "ACCEPTED" ? "Start Job" : "Complete Job"}</button>}
+        {confirm && <div role="group" aria-label="Confirm job action" className="mt-5 rounded-lg bg-slate-50 p-4"><p className="font-semibold">{confirm === "accept" ? "Accept this job request?" : confirm === "reject" ? "Reject this job request?" : confirm === "start" ? "Start this job?" : "Mark this job as completed?"}</p>{(confirm === "start" || confirm === "complete") && <p className="mt-2 text-sm text-slate-600">{confirm === "start" ? "This will mark the job as in progress." : "Confirm that the requested service has been completed."}</p>}{confirm === "reject" && <div className="mt-4"><label htmlFor="rejection-reason" className="block text-sm font-medium">Reason for rejection</label><textarea id="rejection-reason" disabled={busy} value={reason} onChange={event => setReason(event.target.value)} maxLength={500} placeholder="Optional reason" className="mt-2 w-full rounded-lg border border-slate-300 p-3"/></div>}<div className="mt-4 flex gap-3"><button disabled={busy} onClick={act} className="rounded-lg bg-teal-700 px-4 py-2 font-semibold text-white disabled:opacity-50">{busy ? pendingLabel : confirm === "accept" ? "Confirm Accept" : confirm === "reject" ? "Confirm Reject" : confirm === "start" ? "Confirm Start" : "Confirm Complete"}</button><button disabled={busy} onClick={() => {setConfirm(null); setReason("");}} className="rounded-lg border px-4 py-2">Cancel</button></div></div>}
+      </section>}
+    </div>}</div></main></div>;
+}

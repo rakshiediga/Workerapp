@@ -1,0 +1,12 @@
+﻿import {Router} from "express";
+import multer from "multer";
+import rateLimit from "express-rate-limit";
+import {authenticate,authorizeRoles} from "../middleware/auth.middleware.js";
+import {status,submit} from "../controllers/worker-verification.controller.js";
+import {AuthError} from "../types/auth.types.js";
+const router=Router();
+const upload=multer({storage:multer.memoryStorage(),limits:{fileSize:5*1024*1024,files:2,fields:3,parts:5,fieldSize:256,fieldNameSize:50},fileFilter:(_req,file,callback)=>{if(!["image/jpeg","image/png","application/pdf"].includes(file.mimetype))return callback(new AuthError(400,"Upload JPG, PNG or PDF documents only."));callback(null,true);}}).fields([{name:"documentFront",maxCount:1},{name:"documentBack",maxCount:1}]);
+router.use(authenticate,authorizeRoles("WORKER"));
+router.get("/",status);
+router.post("/",rateLimit({windowMs:60*60*1000,limit:20,standardHeaders:"draft-8",legacyHeaders:false,message:{success:false,message:"Too many verification submissions. Please try again later."}}),(req,res,next)=>upload(req,res,error=>{if(error instanceof multer.MulterError)return next(new AuthError(400,error.code==="LIMIT_FILE_SIZE"?"Each document must be no larger than 5 MB.":"Invalid upload fields or too many files."));if(error)return next(error);next();}),submit);
+export default router;

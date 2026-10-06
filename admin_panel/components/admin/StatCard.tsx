@@ -1,0 +1,2 @@
+import {Icon} from "./Icon";
+export function StatCard({title,value,description,icon}:{title:string;value:string;description:string;icon:string}){return <article className="rounded-xl border border-slate-200 bg-white p-6"><div className="flex items-center justify-between gap-3"><h2 className="text-sm font-medium text-slate-500">{title}</h2><span className="rounded-lg bg-teal-50 p-2 text-teal-700"><Icon name={icon}/></span></div><p className="mt-5 text-3xl font-semibold">{value}</p><p className="mt-3 text-xs text-slate-500">{description}</p></article>;}
